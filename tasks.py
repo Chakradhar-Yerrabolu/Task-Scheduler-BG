@@ -8,16 +8,42 @@ from celery import Celery
 from dotenv import load_dotenv
 
 load_dotenv()
+
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
-celery = Celery("study_scheduler", broker=REDIS_URL, backend=REDIS_URL)
+
+celery = Celery(
+    "study_scheduler",
+    broker=REDIS_URL,
+    backend=REDIS_URL,
+)
+
 celery.conf.update(
-    timezone="UTC", enable_utc=True,
-    beat_schedule={"dispatch-due-reminders-every-minute": {"task": "tasks.dispatch_due_reminders", "schedule": 60.0}},
-    task_acks_late=True, worker_prefetch_multiplier=1,
+    timezone="UTC",
+    enable_utc=True,
+
+    beat_schedule={
+        "dispatch-due-reminders-every-minute": {
+            "task": "tasks.dispatch_due_reminders",
+            "schedule": 60.0,
+        },
+    },
+
+    task_acks_late=True,
+    worker_prefetch_multiplier=1,
     broker_connection_retry_on_startup=True,
     result_expires=3600,
 )
 
+# Configure TLS certificate verification for Upstash Redis.
+if REDIS_URL.startswith("rediss://"):
+    celery.conf.update(
+        broker_use_ssl={
+            "ssl_cert_reqs": "required",
+        },
+        redis_backend_use_ssl={
+            "ssl_cert_reqs": "required",
+        },
+    )
 
 def _app_and_models():
     from app import create_app, db, User, StudyTask, Reminder, DailyReminderLog
